@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTILOS --- (Se mantiene la paleta de colores legible)
+# --- ESTILOS ---
 st.markdown("""
 <style>
     .stApp { background-color: #f0f2f6; color: #333333; }
@@ -50,7 +50,6 @@ if "doc_embeddings" not in st.session_state:
 if "pca_model" not in st.session_state:
     st.session_state.pca_model = None
 
-
 # --- FUNCIONES CORE ---
 @st.cache_resource
 def load_embedding_model():
@@ -58,14 +57,32 @@ def load_embedding_model():
 
 embedding_model = load_embedding_model()
 
+# --- FUNCIÓN CORREGIDA ---
 def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="temp_docs"):
     if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+    
     documents = []
     for uploaded_file in uploaded_files:
         temp_path = os.path.join(temp_dir, uploaded_file.name)
-        with open(temp_path, "wb") as f: f.write(uploaded_file.getvalue())
-        loader = UnstructuredFileLoader(temp_path)
-        documents.extend(loader.load())
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
+        
+        # Selección inteligente del cargador según la extensión del archivo
+        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+        if file_extension == ".pdf":
+            loader = PyPDFLoader(temp_path)
+        else:
+            loader = UnstructuredFileLoader(temp_path)
+        
+        try:
+            documents.extend(loader.load())
+        except Exception as e:
+            st.error(f"Error al cargar el archivo {uploaded_file.name}: {e}")
+            continue # Continúa con el siguiente archivo si uno falla
+
+    if not documents:
+        st.error("No se pudieron cargar documentos. Revisa los archivos o sus formatos.")
+        return False
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     st.session_state.docs_split = text_splitter.split_documents(documents)
@@ -88,26 +105,19 @@ def visualize_embeddings(query_text):
         st.warning("Primero procesa los documentos para poder visualizar los embeddings.")
         return
 
-    # Proyectar embeddings de documentos
     doc_coords = st.session_state.pca_model.transform(st.session_state.doc_embeddings)
-    
     df = pd.DataFrame({
-        'x': doc_coords[:, 0],
-        'y': doc_coords[:, 1],
+        'x': doc_coords[:, 0], 'y': doc_coords[:, 1],
         'text': [f"Chunk {i}: {doc.page_content[:100]}..." for i, doc in enumerate(st.session_state.docs_split)],
         'type': 'Documento'
     })
 
-    # Proyectar embedding de la consulta
     if query_text:
         query_embedding = embedding_model.embed_query(query_text)
         query_coords = st.session_state.pca_model.transform([query_embedding])
-        
         query_df = pd.DataFrame({
-            'x': query_coords[:, 0],
-            'y': query_coords[:, 1],
-            'text': f"Tu Pregunta: {query_text}",
-            'type': 'Pregunta'
+            'x': query_coords[:, 0], 'y': query_coords[:, 1],
+            'text': f"Tu Pregunta: {query_text}", 'type': 'Pregunta'
         })
         df = pd.concat([df, query_df], ignore_index=True)
 
@@ -115,13 +125,11 @@ def visualize_embeddings(query_text):
         df, x='x', y='y', color='type', hover_data='text',
         title="Visualización del Espacio de Embeddings (Reducido con PCA)",
         color_discrete_map={'Documento': 'blue', 'Pregunta': 'red'},
-        symbol='type',
-        symbol_map={'Documento': 'circle', 'Pregunta': 'star'}
+        symbol='type', symbol_map={'Documento': 'circle', 'Pregunta': 'star'}
     )
     fig.update_traces(marker=dict(size=12), selector=dict(mode='markers', type='scatter'))
     fig.update_layout(legend_title_text='Tipo')
     st.plotly_chart(fig, use_container_width=True)
-
 
 # --- INTERFAZ DE STREAMLIT ---
 st.title("🔬 Laboratorio Interactivo de RAG")
@@ -136,20 +144,17 @@ with st.sidebar:
     st.divider()
     
     st.header("🧪 2. Parámetros del RAG")
-    uploaded_files = st.file_uploader("Sube tus documentos", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Sube tus documentos (PDF, TXT, JPG, etc.)", accept_multiple_files=True)
     
-    # Sliders para parámetros de chunking
     chunk_size = st.slider("Tamaño del Chunk (chunk_size)", 200, 2000, 1000, 100)
     chunk_overlap = st.slider("Solapamiento (chunk_overlap)", 0, 500, 200, 50)
     
     if uploaded_files:
         if st.button("Procesar Documentos"):
-            with st.spinner("Procesando y creando embeddings... Esto puede tardar."):
+            with st.spinner("Procesando y creando embeddings..."):
                 success = process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap)
-                if success:
-                    st.success("¡Documentos procesados exitosamente!")
-                else:
-                    st.error("No se pudo procesar los documentos.")
+                if success: st.success("¡Documentos procesados exitosamente!")
+                else: st.error("No se pudo procesar los documentos.")
 
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3 = st.tabs(["🤖 Comparador RAG", "🗺️ Explorador de Embeddings", "⚙️ Desglose del Proceso"])
@@ -157,28 +162,21 @@ tab1, tab2, tab3 = st.tabs(["🤖 Comparador RAG", "🗺️ Explorador de Embedd
 with tab1:
     st.header("Comparación: LLM simple vs. LLM con RAG")
     
-    if not groq_api_key:
-        st.warning("Ingresa tu API Key de Groq para continuar.")
-    elif not st.session_state.vector_store:
-        st.warning("Sube y procesa documentos en la barra lateral para activar el RAG.")
+    if not groq_api_key: st.warning("Ingresa tu API Key de Groq para continuar.")
+    elif not st.session_state.vector_store: st.warning("Sube y procesa documentos para activar el RAG.")
     else:
         llm = ChatGroq(temperature=0, groq_api_key=groq_api_key, model_name=model_name)
-        
         st.subheader("Parámetros de Recuperación")
         top_k = st.slider("Chunks a recuperar (Top-K)", 1, 10, 3)
-        
         prompt = st.text_input("Haz tu pregunta aquí:", key="main_prompt")
 
         if prompt:
             col1, col2 = st.columns(2)
-            
             with col1:
                 st.subheader("Respuesta General (sin RAG)")
                 with st.spinner("Pensando..."):
-                    simple_chain = llm
-                    response_simple = simple_chain.invoke(prompt)
+                    response_simple = llm.invoke(prompt)
                 st.markdown(response_simple.content)
-
             with col2:
                 st.subheader("Respuesta Aumentada (con RAG)")
                 with st.spinner("Buscando en documentos y pensando..."):
@@ -187,37 +185,30 @@ with tab1:
                     document_chain = create_stuff_documents_chain(llm, rag_prompt)
                     retrieval_chain = create_retrieval_chain(retriever, document_chain)
                     response_rag = retrieval_chain.invoke({"input": prompt})
-
                 st.markdown(response_rag["answer"])
-                
-                with st.expander(f"Ver los {top_k} chunks recuperados (contexto)"):
+                with st.expander(f"Ver los {top_k} chunks recuperados"):
                     for i, doc in enumerate(response_rag["context"]):
                         st.success(f"Chunk {i+1} (Fuente: {doc.metadata.get('source', 'N/A')})")
                         st.write(doc.page_content)
-
 with tab2:
     st.header("Visualización del Espacio Vectorial")
-    query_vis = st.text_input("Escribe una pregunta para visualizarla en el espacio vectorial:", key="vis_prompt")
+    query_vis = st.text_input("Escribe una pregunta para visualizarla:", key="vis_prompt")
     visualize_embeddings(query_vis)
 
 with tab3:
     st.header("Anatomía de un Sistema RAG")
-    st.markdown("""
-    Un sistema RAG funciona en dos fases principales: **Indexación** y **Recuperación y Generación**.
-    """)
+    st.markdown("Un sistema RAG funciona en dos fases: **Indexación** y **Recuperación y Generación**.")
     if not st.session_state.docs_split:
         st.info("Sube y procesa un documento para ver un ejemplo práctico aquí.")
     else:
-        st.subheader("1. Fase de Indexación (Lo que ya hicimos)")
-        st.markdown(f"**a. Carga y División (Chunking):** Tu documento se dividió en **{len(st.session_state.docs_split)} chunks**.")
+        st.subheader("1. Fase de Indexación")
+        st.markdown(f"**a. Carga y División:** Tu documento se dividió en **{len(st.session_state.docs_split)} chunks**.")
         with st.expander("Ver ejemplo de un chunk"):
             st.code(st.session_state.docs_split[0].page_content)
-        
-        st.markdown("**b. Vectorización (Embeddings):** Cada chunk se convierte en un vector numérico que captura su significado semántico.")
+        st.markdown("**b. Vectorización:** Cada chunk se convierte en un vector numérico.")
         with st.expander("Ver ejemplo de un vector (primeras 10 dimensiones)"):
             st.code(str(np.array(st.session_state.doc_embeddings[0])[:10]) + "...")
-
-        st.subheader("2. Fase de Recuperación y Generación (Lo que pasa cuando preguntas)")
-        st.markdown("**a. Búsqueda de Similitud:** Tu pregunta se convierte en un vector y el sistema busca los chunks con los vectores más 'cercanos' en la base de datos vectorial (FAISS).")
-        st.markdown("**b. Aumentación del Prompt:** Los chunks recuperados se insertan en un prompt junto a tu pregunta. Este es el 'contexto'.")
-        st.markdown("**c. Generación:** El LLM recibe este prompt aumentado y genera una respuesta basada **exclusivamente** en la información proporcionada.")
+        st.subheader("2. Fase de Recuperación y Generación")
+        st.markdown("**a. Búsqueda de Similitud:** Tu pregunta se vectoriza y el sistema busca los chunks más 'cercanos'.")
+        st.markdown("**b. Aumentación del Prompt:** Los chunks recuperados se insertan en un prompt junto a tu pregunta.")
+        st.markdown("**c. Generación:** El LLM recibe este prompt aumentado y genera la respuesta.")
