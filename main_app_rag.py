@@ -26,19 +26,71 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTILOS ---
+# --- ESTILOS MEJORADOS PARA ALTO CONTRASTE ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f0f2f6; color: #333333; }
-    h1, h2, h3 { color: #1a252f; }
-    .stButton>button { background-color: #007bff; color: white; border-radius: 8px; border: none; padding: 10px 20px; font-weight: bold; }
-    .stButton>button:hover { background-color: #0056b3; }
-    .stTextInput>div>div>input { background-color: #ffffff; color: #333333; }
-    .stInfo { background-color: #e7f3ff; color: #0d6efd; border-left: 5px solid #0d6efd; border-radius: 5px; padding: 1rem; }
-    .stSuccess { background-color: #e6f9e6; color: #198754; border-left: 5px solid #198754; border-radius: 5px; padding: 0.5rem 1rem; }
-    .stWarning { background-color: #fff8e1; color: #ffc107; border-left: 5px solid #ffc107; border-radius: 5px; padding: 1rem; }
+    /* Estilo general de la App */
+    .stApp {
+        background-color: #f0f2f6; /* Fondo gris muy claro */
+        color: #212529; /* Texto principal muy oscuro para alto contraste */
+    }
+
+    /* Barra Lateral */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff; /* Fondo blanco para la barra lateral */
+    }
+
+    /* Títulos */
+    h1, h2, h3 {
+        color: #0a2540; /* Azul oscuro para los títulos */
+    }
+
+    /* Botones */
+    .stButton>button {
+        background-color: #007bff;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 10px 20px;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #0056b3;
+    }
+    
+    /* Bloques de Código (st.code) - FIX IMPORTANTE */
+    pre, code {
+        background-color: #e9ecef !important; /* Fondo gris claro para el código */
+        color: #212529 !important; /* Texto oscuro para el código */
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+    }
+
+    /* Cajas de Mensajes con Contraste Mejorado */
+    .stInfo {
+        background-color: #e7f3ff;
+        color: #052c65; /* Texto azul mucho más oscuro */
+        border-left: 5px solid #0d6efd;
+        border-radius: 5px;
+        padding: 1rem;
+    }
+    .stSuccess {
+        background-color: #d1e7dd;
+        color: #0a3622; /* Texto verde mucho más oscuro */
+        border-left: 5px solid #198754;
+        border-radius: 5px;
+        padding: 0.5rem 1rem;
+    }
+    .stWarning {
+        background-color: #fff3cd;
+        color: #664d03; /* Texto amarillo/ámbar mucho más oscuro */
+        border-left: 5px solid #ffc107;
+        border-radius: 5px;
+        padding: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
+
 
 # --- ESTADO DE LA SESIÓN ---
 if "vector_store" not in st.session_state:
@@ -57,7 +109,6 @@ def load_embedding_model():
 
 embedding_model = load_embedding_model()
 
-# --- FUNCIÓN CORREGIDA ---
 def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="temp_docs"):
     if not os.path.exists(temp_dir): os.makedirs(temp_dir)
     
@@ -67,7 +118,6 @@ def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getvalue())
         
-        # Selección inteligente del cargador según la extensión del archivo
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
         if file_extension == ".pdf":
             loader = PyPDFLoader(temp_path)
@@ -78,7 +128,7 @@ def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="
             documents.extend(loader.load())
         except Exception as e:
             st.error(f"Error al cargar el archivo {uploaded_file.name}: {e}")
-            continue # Continúa con el siguiente archivo si uno falla
+            continue
 
     if not documents:
         st.error("No se pudieron cargar documentos. Revisa los archivos o sus formatos.")
@@ -89,14 +139,9 @@ def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="
     
     if st.session_state.docs_split:
         st.session_state.vector_store = FAISS.from_documents(st.session_state.docs_split, embedding_model)
-        
-        # Generar embeddings para la visualización
         st.session_state.doc_embeddings = embedding_model.embed_documents([doc.page_content for doc in st.session_state.docs_split])
-        
-        # Entrenar PCA
         pca = PCA(n_components=2)
         st.session_state.pca_model = pca.fit(st.session_state.doc_embeddings)
-        
         return True
     return False
 
@@ -204,10 +249,10 @@ with tab3:
         st.subheader("1. Fase de Indexación")
         st.markdown(f"**a. Carga y División:** Tu documento se dividió en **{len(st.session_state.docs_split)} chunks**.")
         with st.expander("Ver ejemplo de un chunk"):
-            st.code(st.session_state.docs_split[0].page_content)
+            st.code(st.session_state.docs_split[0].page_content, language=None)
         st.markdown("**b. Vectorización:** Cada chunk se convierte en un vector numérico.")
         with st.expander("Ver ejemplo de un vector (primeras 10 dimensiones)"):
-            st.code(str(np.array(st.session_state.doc_embeddings[0])[:10]) + "...")
+            st.code(str(np.array(st.session_state.doc_embeddings[0])[:10]) + "...", language=None)
         st.subheader("2. Fase de Recuperación y Generación")
         st.markdown("**a. Búsqueda de Similitud:** Tu pregunta se vectoriza y el sistema busca los chunks más 'cercanos'.")
         st.markdown("**b. Aumentación del Prompt:** Los chunks recuperados se insertan en un prompt junto a tu pregunta.")
