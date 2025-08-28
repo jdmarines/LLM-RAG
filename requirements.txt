@@ -5,11 +5,16 @@ langchain-groq
 langchain_community
 langchain-text-splitters
 faiss-cpu
-pypdf
 sentence-transformers
-unstructured[easy]
-pytesseract
-Pillow
-python-dotenv
 scikit-learn
 plotly
+pandas
+numpy
+
+# Dependencias para carga de documentos
+unstructured
+pypdf
+pikepdf
+pdfminer.six
+pytesseract
+Pillow
