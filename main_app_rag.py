@@ -25,19 +25,66 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stApp {
-        background-color: #f0f2f6;
+        background-color: #f0f2f6; /* Fondo claro */
+        color: #333333; /* Color de texto principal para contraste */
     }
     .stButton>button {
         background-color: #4CAF50;
         color: white;
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
     }
     .stTextInput>div>div>input {
         background-color: #ffffff;
+        color: #333333;
+        border: 1px solid #cccccc;
+        border-radius: 5px;
+        padding: 10px;
     }
     .stExpander {
         border: 1px solid #ddd;
         border-radius: 10px;
         background-color: #fafafa;
+        padding: 10px;
+        margin-top: 15px;
+    }
+    .stExpander>div>div>p { /* Ajustar texto dentro del expander */
+        color: #333333;
+    }
+    h1, h2, h3, h4, h5, h6 {
+        color: #2c3e50; /* Un color oscuro para los títulos */
+    }
+    .stMarkdown p, .stMarkdown li {
+        color: #333333; /* Asegurar color de texto para markdown */
+    }
+    .stInfo {
+        background-color: #e6f7ff; /* Fondo más suave para st.info */
+        color: #0056b3; /* Texto azul oscuro para st.info */
+        border-left: 5px solid #007bff;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+    .stWarning {
+        background-color: #fff3cd; /* Fondo amarillo suave para st.warning */
+        color: #856404; /* Texto amarillo oscuro para st.warning */
+        border-left: 5px solid #ffc107;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+    .stSuccess {
+        background-color: #d4edda; /* Fondo verde suave para st.success */
+        color: #155724; /* Texto verde oscuro para st.success */
+        border-left: 5px solid #28a745;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
