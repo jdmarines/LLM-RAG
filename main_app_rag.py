@@ -21,71 +21,64 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ESTILOS VISUALES ---
+# --- PALETA DE COLORES MEJORADA PARA LEGIBILIDAD ---
 st.markdown("""
 <style>
+    /* Estilo general */
     .stApp {
-        background-color: #f0f2f6; /* Fondo claro */
-        color: #333333; /* Color de texto principal para contraste */
+        background-color: #f0f2f6;
+        color: #333333; 
     }
+    h1, h2, h3 {
+        color: #1a252f;
+    }
+
+    /* Estilos de botones */
     .stButton>button {
-        background-color: #4CAF50;
+        background-color: #007bff;
         color: white;
         border-radius: 8px;
+        border: none;
         padding: 10px 20px;
-        font-size: 16px;
         font-weight: bold;
     }
     .stButton>button:hover {
-        background-color: #45a049;
+        background-color: #0056b3;
     }
+    
+    /* Input de texto */
     .stTextInput>div>div>input {
         background-color: #ffffff;
         color: #333333;
-        border: 1px solid #cccccc;
-        border-radius: 5px;
-        padding: 10px;
     }
-    .stExpander {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background-color: #fafafa;
-        padding: 10px;
-        margin-top: 15px;
-    }
-    .stExpander>div>div>p { /* Ajustar texto dentro del expander */
-        color: #333333;
-    }
-    h1, h2, h3, h4, h5, h6 {
-        color: #2c3e50; /* Un color oscuro para los títulos */
-    }
-    .stMarkdown p, .stMarkdown li {
-        color: #333333; /* Asegurar color de texto para markdown */
-    }
+
+    /* Caja de la pregunta del usuario (st.info) */
     .stInfo {
-        background-color: #e6f7ff; /* Fondo más suave para st.info */
-        color: #0056b3; /* Texto azul oscuro para st.info */
-        border-left: 5px solid #007bff;
+        background-color: #e7f3ff;
+        color: #0d6efd; /* Azul oscuro y vibrante */
+        border-left: 5px solid #0d6efd;
         border-radius: 5px;
-        padding: 10px;
-        margin-bottom: 15px;
+        padding: 1rem;
     }
+    
+    /* Caja del tiempo de respuesta (st.success) */
+    .stSuccess {
+        background-color: #e6f9e6;
+        color: #198754; /* Verde oscuro y legible */
+        border-left: 5px solid #198754;
+        border-radius: 5px;
+        padding: 0.5rem 1rem;
+    }
+
+    /* Caja de advertencia (st.warning) */
     .stWarning {
-        background-color: #fff3cd; /* Fondo amarillo suave para st.warning */
-        color: #856404; /* Texto amarillo oscuro para st.warning */
+        background-color: #fff8e1;
+        color: #ffc107; /* Amarillo/ambar oscuro */
         border-left: 5px solid #ffc107;
         border-radius: 5px;
-        padding: 10px;
-        margin-bottom: 15px;
+        padding: 1rem;
     }
-    .stSuccess {
-        background-color: #d4edda; /* Fondo verde suave para st.success */
-        color: #155724; /* Texto verde oscuro para st.success */
-        border-left: 5px solid #28a745;
-        border-radius: 5px;
-        padding: 10px;
-        margin-bottom: 15px;
-    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,10 +153,7 @@ with st.sidebar:
     if uploaded_files:
         if st.button("Procesar Documentos"):
             with st.spinner("Procesando documentos... ⏳"):
-                # Cargar el modelo de embeddings una sola vez
                 embedding_model = load_embedding_model()
-                
-                # Procesar y crear el vector store
                 docs_split = process_documents(uploaded_files)
                 st.session_state.vector_store = create_vector_store(docs_split, embedding_model)
                 st.success("¡Documentos procesados y listos para el RAG! ✅")
@@ -180,14 +170,12 @@ with st.sidebar:
 if not groq_api_key:
     st.warning("Por favor, ingresa tu API Key de Groq en la barra lateral para continuar.")
 else:
-    # Inicializar el LLM de Groq
     try:
         llm = ChatGroq(temperature=0.2, groq_api_key=groq_api_key, model_name=st.session_state.model_name)
     except Exception as e:
         st.error(f"Error al inicializar el modelo de Groq: {e}")
         st.stop()
         
-    # Input para la pregunta del usuario
     prompt = st.chat_input("Haz tu pregunta aquí...")
 
     if prompt:
@@ -202,12 +190,8 @@ else:
             with st.spinner("Pensando..."):
                 start_time = time.time()
                 
-                # Prompt simple para el LLM general
                 simple_prompt = ChatPromptTemplate.from_template(
-                    """
-                    Responde la siguiente pregunta de la manera más concisa posible.
-                    Pregunta: {question}
-                    """
+                    "Responde la siguiente pregunta de la manera más concisa posible.\nPregunta: {question}"
                 )
                 chain_simple = simple_prompt | llm
                 response_simple = chain_simple.invoke({"question": prompt})
@@ -223,15 +207,13 @@ else:
             st.subheader("🧠 LLM con RAG (Respuesta con tus Documentos)")
             
             if "vector_store" not in st.session_state or st.session_state.vector_store is None:
-                st.warning("No has subido documentos o no han sido procesados. La respuesta RAG no estará disponible.")
+                st.warning("No has subido documentos o no han sido procesados.")
             else:
                 with st.spinner("Buscando en tus documentos y pensando..."):
                     start_time_rag = time.time()
 
-                    # Crear el retriever
                     retriever = st.session_state.vector_store.as_retriever()
                     
-                    # Prompt para el RAG
                     rag_prompt = ChatPromptTemplate.from_template(
                         """
                         Eres un asistente experto en responder preguntas basándote únicamente en el siguiente contexto. 
@@ -247,7 +229,6 @@ else:
                     document_chain = create_stuff_documents_chain(llm, rag_prompt)
                     retrieval_chain = create_retrieval_chain(retriever, document_chain)
                     
-                    # Invocar la cadena y obtener la respuesta y el contexto
                     response_rag = retrieval_chain.invoke({"input": prompt})
                     
                     end_time_rag = time.time()
@@ -256,7 +237,6 @@ else:
                 st.markdown(response_rag["answer"])
                 st.success(f"Tiempo de respuesta: {response_time_rag:.2f} segundos")
 
-                # Mostrar el contexto utilizado
                 with st.expander("Ver el contexto utilizado por el RAG"):
                     for i, doc in enumerate(response_rag["context"]):
                         st.write(f"**Fuente {i+1}:** {doc.metadata.get('source', 'Desconocido')}")
