@@ -26,67 +26,81 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTILOS MEJORADOS PARA ALTO CONTRASTE ---
+# --- ESTILOS CSS PARA TEMA OSCURO ---
 st.markdown("""
 <style>
-    /* Estilo general de la App */
+    /* Estilo general de la App (Tema Oscuro) */
     .stApp {
-        background-color: #f0f2f6; /* Fondo gris muy claro */
-        color: #212529; /* Texto principal muy oscuro para alto contraste */
+        background-color: #0E1117; /* Fondo oscuro principal de Streamlit */
+        color: #FAFAFA; /* Texto principal claro */
     }
 
     /* Barra Lateral */
     [data-testid="stSidebar"] {
-        background-color: #ffffff; /* Fondo blanco para la barra lateral */
+        background-color: #1a1c24; /* Un oscuro ligeramente diferente */
     }
 
     /* Títulos */
     h1, h2, h3 {
-        color: #0a2540; /* Azul oscuro para los títulos */
+        color: #FFFFFF; /* Títulos en blanco puro */
     }
 
     /* Botones */
     .stButton>button {
-        background-color: #007bff;
-        color: white;
+        background-color: #5865F2; /* Un color vibrante (Blurple) */
+        color: #FFFFFF;
         border-radius: 8px;
         border: none;
         padding: 10px 20px;
         font-weight: bold;
     }
     .stButton>button:hover {
-        background-color: #0056b3;
+        background-color: #4752C4;
     }
     
-    /* Bloques de Código (st.code) - FIX IMPORTANTE */
+    /* Input de Texto */
+    .stTextInput>div>div>input, .stTextArea textarea {
+        background-color: #262730;
+        color: #FAFAFA;
+        border: 1px solid #3c3f44;
+    }
+
+    /* Bloques de Código (st.code) */
     pre, code {
-        background-color: #e9ecef !important; /* Fondo gris claro para el código */
-        color: #212529 !important; /* Texto oscuro para el código */
-        border: 1px solid #ced4da;
+        background-color: #1a1c24 !important; /* Fondo oscuro para el código */
+        color: #d1d5db !important; /* Texto gris claro para el código */
+        border: 1px solid #3c3f44;
         border-radius: 5px;
     }
 
-    /* Cajas de Mensajes con Contraste Mejorado */
+    /* Cajas de Mensajes para Tema Oscuro */
     .stInfo {
-        background-color: #e7f3ff;
-        color: #052c65; /* Texto azul mucho más oscuro */
+        background-color: #1c2b4d;
+        color: #a9c5ff; /* Texto azul claro */
         border-left: 5px solid #0d6efd;
         border-radius: 5px;
         padding: 1rem;
     }
     .stSuccess {
-        background-color: #d1e7dd;
-        color: #0a3622; /* Texto verde mucho más oscuro */
+        background-color: #1c3d2f;
+        color: #a3e9a4; /* Texto verde claro */
         border-left: 5px solid #198754;
         border-radius: 5px;
         padding: 0.5rem 1rem;
     }
     .stWarning {
-        background-color: #fff3cd;
-        color: #664d03; /* Texto amarillo/ámbar mucho más oscuro */
+        background-color: #4d401f;
+        color: #ffe082; /* Texto amarillo claro */
         border-left: 5px solid #ffc107;
         border-radius: 5px;
         padding: 1rem;
+    }
+    
+    /* Expanders */
+    .stExpander {
+        background-color: #262730;
+        border: 1px solid #3c3f44;
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -111,7 +125,6 @@ embedding_model = load_embedding_model()
 
 def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="temp_docs"):
     if not os.path.exists(temp_dir): os.makedirs(temp_dir)
-    
     documents = []
     for uploaded_file in uploaded_files:
         temp_path = os.path.join(temp_dir, uploaded_file.name)
@@ -169,8 +182,9 @@ def visualize_embeddings(query_text):
     fig = px.scatter(
         df, x='x', y='y', color='type', hover_data='text',
         title="Visualización del Espacio de Embeddings (Reducido con PCA)",
-        color_discrete_map={'Documento': 'blue', 'Pregunta': 'red'},
-        symbol='type', symbol_map={'Documento': 'circle', 'Pregunta': 'star'}
+        color_discrete_map={'Documento': '#5865F2', 'Pregunta': '#f8b400'},
+        symbol='type', symbol_map={'Documento': 'circle', 'Pregunta': 'star'},
+        template='plotly_dark'  # <-- AQUÍ SE APLICA EL TEMA OSCURO AL GRÁFICO
     )
     fig.update_traces(marker=dict(size=12), selector=dict(mode='markers', type='scatter'))
     fig.update_layout(legend_title_text='Tipo')
