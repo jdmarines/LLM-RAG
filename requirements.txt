@@ -11,3 +11,5 @@ unstructured[easy]
 pytesseract
 Pillow
 python-dotenv
+scikit-learn
+plotly
