@@ -10,7 +10,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader, WebBaseLoader # <-- AÑADIDO WebBaseLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 
@@ -119,34 +119,51 @@ if "pca_model" not in st.session_state:
 # --- FUNCIONES CORE ---
 @st.cache_resource
 def load_embedding_model():
+    """Carga el modelo de embeddings una sola vez."""
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 embedding_model = load_embedding_model()
 
-def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="temp_docs"):
-    if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+def process_and_embed_docs(uploaded_files, url_input, chunk_size, chunk_overlap, temp_dir="temp_docs"):
+    """Procesa tanto archivos subidos como URLs, los divide y crea los embeddings."""
     documents = []
-    for uploaded_file in uploaded_files:
-        temp_path = os.path.join(temp_dir, uploaded_file.name)
-        with open(temp_path, "wb") as f:
-            f.write(uploaded_file.getvalue())
-        
-        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
-        if file_extension == ".pdf":
-            loader = PyPDFLoader(temp_path)
-        else:
-            loader = UnstructuredFileLoader(temp_path)
-        
+
+    # --- Procesamiento de URLs ---
+    if url_input:
         try:
-            documents.extend(loader.load())
+            # WebBaseLoader se encarga de descargar y parsear el HTML
+            loader = WebBaseLoader(url_input)
+            url_docs = loader.load()
+            documents.extend(url_docs)
+            st.info(f"Contenido de la URL '{url_input}' cargado exitosamente.")
         except Exception as e:
-            st.error(f"Error al cargar el archivo {uploaded_file.name}: {e}")
-            continue
+            st.error(f"Error al cargar la URL {url_input}: {e}")
+
+    # --- Procesamiento de archivos subidos ---
+    if uploaded_files:
+        if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+        for uploaded_file in uploaded_files:
+            temp_path = os.path.join(temp_dir, uploaded_file.name)
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getvalue())
+            
+            file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+            if file_extension == ".pdf":
+                loader = PyPDFLoader(temp_path)
+            else:
+                loader = UnstructuredFileLoader(temp_path)
+            
+            try:
+                documents.extend(loader.load())
+            except Exception as e:
+                st.error(f"Error al cargar el archivo {uploaded_file.name}: {e}")
+                continue
 
     if not documents:
-        st.error("No se pudieron cargar documentos. Revisa los archivos o sus formatos.")
+        st.error("No se pudieron cargar documentos. Revisa los archivos o la URL.")
         return False
 
+    # --- División, Vectorización y Almacenamiento ---
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     st.session_state.docs_split = text_splitter.split_documents(documents)
     
@@ -159,6 +176,7 @@ def process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap, temp_dir="
     return False
 
 def visualize_embeddings(query_text):
+    """Visualiza los embeddings de documentos y la pregunta en un gráfico 2D."""
     if not st.session_state.pca_model or not st.session_state.doc_embeddings:
         st.warning("Primero procesa los documentos para poder visualizar los embeddings.")
         return
@@ -184,7 +202,7 @@ def visualize_embeddings(query_text):
         title="Visualización del Espacio de Embeddings (Reducido con PCA)",
         color_discrete_map={'Documento': '#5865F2', 'Pregunta': '#f8b400'},
         symbol='type', symbol_map={'Documento': 'circle', 'Pregunta': 'star'},
-        template='plotly_dark'  # <-- AQUÍ SE APLICA EL TEMA OSCURO AL GRÁFICO
+        template='plotly_dark'
     )
     fig.update_traces(marker=dict(size=12), selector=dict(mode='markers', type='scatter'))
     fig.update_layout(legend_title_text='Tipo')
@@ -203,17 +221,23 @@ with st.sidebar:
     st.divider()
     
     st.header("🧪 2. Parámetros del RAG")
-    uploaded_files = st.file_uploader("Sube tus documentos (PDF, TXT, JPG, etc.)", accept_multiple_files=True)
+    
+    # --- NUEVA SECCIÓN PARA URL ---
+    st.subheader("Opción A: Cargar desde URL")
+    url_input = st.text_input("Ingresa la URL de una página web")
+    
+    st.subheader("Opción B: Cargar Archivos")
+    uploaded_files = st.file_uploader("Sube tus documentos (PDF, TXT, etc.)", accept_multiple_files=True)
     
     chunk_size = st.slider("Tamaño del Chunk (chunk_size)", 200, 2000, 1000, 100)
     chunk_overlap = st.slider("Solapamiento (chunk_overlap)", 0, 500, 200, 50)
     
-    if uploaded_files:
-        if st.button("Procesar Documentos"):
+    if uploaded_files or url_input:
+        if st.button("Procesar Fuentes de Datos"):
             with st.spinner("Procesando y creando embeddings..."):
-                success = process_and_embed_docs(uploaded_files, chunk_size, chunk_overlap)
-                if success: st.success("¡Documentos procesados exitosamente!")
-                else: st.error("No se pudo procesar los documentos.")
+                success = process_and_embed_docs(uploaded_files, url_input, chunk_size, chunk_overlap)
+                if success: st.success("¡Fuentes de datos procesadas exitosamente!")
+                else: st.error("No se pudo procesar las fuentes de datos.")
 
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3 = st.tabs(["🤖 Comparador RAG", "🗺️ Explorador de Embeddings", "⚙️ Desglose del Proceso"])
@@ -222,7 +246,7 @@ with tab1:
     st.header("Comparación: LLM simple vs. LLM con RAG")
     
     if not groq_api_key: st.warning("Ingresa tu API Key de Groq para continuar.")
-    elif not st.session_state.vector_store: st.warning("Sube y procesa documentos para activar el RAG.")
+    elif not st.session_state.vector_store: st.warning("Procesa una URL o sube documentos para activar el RAG.")
     else:
         llm = ChatGroq(temperature=0, groq_api_key=groq_api_key, model_name=model_name)
         st.subheader("Parámetros de Recuperación")
@@ -258,10 +282,10 @@ with tab3:
     st.header("Anatomía de un Sistema RAG")
     st.markdown("Un sistema RAG funciona en dos fases: **Indexación** y **Recuperación y Generación**.")
     if not st.session_state.docs_split:
-        st.info("Sube y procesa un documento para ver un ejemplo práctico aquí.")
+        st.info("Procesa una URL o sube un documento para ver un ejemplo práctico aquí.")
     else:
         st.subheader("1. Fase de Indexación")
-        st.markdown(f"**a. Carga y División:** Tu documento se dividió en **{len(st.session_state.docs_split)} chunks**.")
+        st.markdown(f"**a. Carga y División:** Tus fuentes de datos se dividieron en **{len(st.session_state.docs_split)} chunks**.")
         with st.expander("Ver ejemplo de un chunk"):
             st.code(st.session_state.docs_split[0].page_content, language=None)
         st.markdown("**b. Vectorización:** Cada chunk se convierte en un vector numérico.")
@@ -271,3 +295,4 @@ with tab3:
         st.markdown("**a. Búsqueda de Similitud:** Tu pregunta se vectoriza y el sistema busca los chunks más 'cercanos'.")
         st.markdown("**b. Aumentación del Prompt:** Los chunks recuperados se insertan en un prompt junto a tu pregunta.")
         st.markdown("**c. Generación:** El LLM recibe este prompt aumentado y genera la respuesta.")
+
