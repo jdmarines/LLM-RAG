@@ -10,11 +10,11 @@ scikit-learn
 plotly
 pandas
 numpy
-
-# Dependencias para carga de documentos
 unstructured
 pypdf
 pikepdf
 pdfminer.six
 pytesseract
 Pillow
+langchain-core
+beautifulsoup4
